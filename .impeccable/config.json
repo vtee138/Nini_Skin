@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "index.html"
+        ],
+        "createdAt": "2026-10-05T08:34:07.132Z",
+        "reason": "Claude: only hit is .app, the full-bleed phone shell whose edge-to-edge child sections inset their own text (topbar/list 16px)"
+      }
+    ]
+  }
+}

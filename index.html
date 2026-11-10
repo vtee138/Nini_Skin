@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tủ đồ Nini</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --tint: #6FA8FF; --ink: #1F2633; --ink-soft: #6B7385; --sheet: #fff; --chip-bg: #F4F5F7; --chip-line: #D9DCE2; --select: #FFF3EC; --select-ring: #FF8A5B; --page: #E9ECF2; }
+  @property --tint { syntax: '<color>'; inherits: true; initial-value: #6FA8FF; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--page); font-family: 'Be Vietnam Pro', sans-serif; color: var(--ink); display: flex; justify-content: center; overflow: hidden; }
+  .app { position: relative; width: 100%; max-width: 440px; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: var(--sheet); box-shadow: 0 12px 40px rgba(30,40,60,.10); transition: --tint .6s ease; }
+
+  .stage { position: relative; flex: 1 1 52%; min-height: 280px; background: radial-gradient(120% 70% at 50% 42%, color-mix(in oklab, var(--tint) 18%, #fff) 0%, color-mix(in oklab, var(--tint) 55%, #fff) 70%, color-mix(in oklab, var(--tint) 70%, #fff) 100%); }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .shadow { position: absolute; left: 50%; width: 38%; aspect-ratio: 5/1; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(closest-side, rgba(40,30,60,.22), transparent); pointer-events: none; }
+  .now-wearing { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 2; padding: 7px 14px; border-radius: 999px; background: rgba(255,255,255,.7); backdrop-filter: blur(8px); font-size: 13px; font-weight: 600; white-space: nowrap; color: var(--ink); transition: opacity .25s; }
+  .now-wearing small { font-weight: 500; color: var(--ink-soft); margin-left: 4px; }
+  .loading { position: absolute; inset: 0; display: grid; place-items: center; font-size: 14px; color: rgba(31,38,51,.55); }
+  .error { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; font-size: 14px; line-height: 1.5; color: #8A3B2A; }
+
+  .sheet { position: relative; flex: 0 0 auto; height: 50%; margin-top: -22px; background: var(--sheet); border-radius: 24px 24px 0 0; display: flex; flex-direction: column; z-index: 3; box-shadow: 0 -6px 20px rgba(30,40,60,.06); }
+  .list { flex: 1; overflow-y: auto; padding: 14px 16px calc(24px + env(safe-area-inset-bottom)); overscroll-behavior: contain; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; margin: 16px 4px 12px; }
+  .section-head h2 { margin: 0; font-size: 17px; font-weight: 600; color: #5A6170; }
+  .chip { font-size: 12px; font-weight: 500; color: var(--ink-soft); background: var(--chip-bg); border: 1px solid var(--chip-line); border-radius: 6px; padding: 5px 10px; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 8px; }
+  .item { position: relative; border: 0; padding: 6px 4px 8px; border-radius: 16px; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; font: inherit; color: var(--ink-soft); transition: background .2s, transform .15s; }
+  .item:active { transform: scale(.95); }
+  .item:focus-visible { outline: 2px solid var(--select-ring); outline-offset: 2px; }
+  .item[aria-pressed="true"] { background: var(--select); box-shadow: inset 0 0 0 2px var(--select-ring); color: var(--ink); }
+  .thumb { width: 100%; aspect-ratio: 1; background-image: url('nini_mascot/nini_mascot.1024/texture_00.png'); background-repeat: no-repeat; background-size: calc(1024/var(--w)*100%) auto; background-position: calc(var(--x)/(1024 - var(--w))*100%) calc(var(--y)/(1024 - var(--h))*100%); filter: drop-shadow(0 4px 4px rgba(30,40,60,.12)); border-radius: 10px; }
+  .thumb.none { background: none; filter: none; display: grid; place-items: center; color: #C3C8D1; }
+  .thumb.none svg { width: 56%; height: 56%; }
+  .item .label { font-size: 11px; font-weight: 600; letter-spacing: .02em; }
+  .item .check { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 50%; background: var(--select-ring); color: #fff; display: none; place-items: center; }
+  .item .check svg { width: 12px; height: 12px; }
+  .item[aria-pressed="true"] .check { display: grid; }
+  @media (prefers-reduced-motion: reduce) { .app { transition: none; } }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <section class="stage" id="stage">
+    <div class="shadow" id="shadow" hidden></div>
+    <div class="loading" id="loading">Đang tải Nini…</div>
+    <div class="now-wearing" id="nowWearing" hidden></div>
+  </section>
+  <section class="sheet">
+    <div class="list" id="list"></div>
+  </section>
+</div>
+
+<script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+<script>
+(() => {
+  const MODEL_URL = 'nini_mascot/nini_mascot.model3.json';
+
+  // ── Drawable ID → Mesh trong moc3 ──
+  // Thân mặc định (áo số 9). Ẩn khi đang mặc 1 bộ đồng phục.
+  const BASE_BODY = 'nini';
+
+  // Trang phục — mỗi item = 1 drawable ID trong moc3.
+  // x/y/w/h = vùng cắt trên texture_00.png (1024×1024) để hiển thị ảnh thu nhỏ.
+  const OUTFITS = [
+    { id: 'hust', code: 'HUST', name: 'Bách khoa Hà Nội',     color: '#E8452C', x:  16, y:  26, w: 175, h: 157 },
+    { id: 'fpt',  code: 'FPT',  name: 'Đại học FPT',           color: '#F7861E', x: 219, y:  25, w: 177, h: 160 },
+    { id: 'ftu',  code: 'FTU',  name: 'Ngoại thương',          color: '#A3203A', x: 423, y:  26, w: 178, h: 157 },
+    { id: 'ptit', code: 'PTIT', name: 'Bưu chính Viễn thông',  color: '#D8333A', x: 626, y:  24, w: 180, h: 161 },
+    { id: 'vnu',  code: 'VNU',  name: 'ĐH Quốc gia Hà Nội',    color: '#2C4C9C', x:  15, y: 230, w: 177, h: 158 },
+    { id: 'ueh',  code: 'UEH',  name: 'Kinh tế TP.HCM',        color: '#0F9C93', x: 217, y: 232, w: 183, h: 160 },
+    { id: 'hmu',  code: 'HMU',  name: 'Y Hà Nội',              color: '#E53B3B', x: 423, y: 231, w: 180, h: 157 },
+    { id: 'neu',  code: 'NEU',  name: 'Kinh tế Quốc dân',      color: '#2F55B5', x:  15, y: 434, w: 177, h: 158 },
+  ];
+
+  // Giữ đầu Nini gốc và ẩn các drawable mũ cũ trong moc3.
+  const DEFAULT_HEAD = 'ArtMesh';
+  const HIDDEN_HEADS = ['truc', 'meo', 'gau', 'vit', 'dau_tay', 'tho', 'ech', 'ca_map'];
+
+  const DEFAULT_TINT = '#6FA8FF';
+
+  // ── State ──
+  const $ = id => document.getElementById(id);
+  const app = $('app'), stage = $('stage'), list = $('list');
+
+  const OUTFIT_KEY = 'nini.outfit';
+  const read  = k => { try { return localStorage.getItem(k); } catch { return null; } };
+  const write = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} };
+  try { localStorage.removeItem('nini.head'); } catch {}
+
+  const qs = new URLSearchParams(location.search);
+  const initOutfit = qs.get('outfit') || read(OUTFIT_KEY);
+
+  let currentOutfit = OUTFITS.some(o => o.id === initOutfit) ? initOutfit : null;
+  // ── Render UI ──
+
+  function thumbHTML(item) {
+    if (!item) {
+      return `<span class="thumb none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M5.6 18.4L18.4 5.6"/></svg></span>`;
+    }
+    return `<span class="thumb" style="--x:${item.x};--y:${item.y};--w:${item.w};--h:${item.h}"></span>`;
+  }
+
+  function itemHTML(item) {
+    const isDefault = !item;
+    const selected = isDefault ? (currentOutfit === null) : (currentOutfit === item.id);
+    const id    = isDefault ? '' : item.id;
+    const label = isDefault ? 'Mặc định' : item.code;
+    const title = isDefault ? 'Không mặc đồ' : `${item.code} · ${item.name}`;
+
+    return `<button class="item" data-id="${id}" aria-pressed="${selected}" title="${title}">
+      ${thumbHTML(item)}
+      <span class="label">${label}</span>
+      <span class="check"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.2l2.3 2.3 4.7-5"/></svg></span>
+    </button>`;
+  }
+
+  function renderList() {
+    list.innerHTML = `
+      <div class="section-head">
+        <h2>Đồng phục đại học</h2>
+        <span class="chip">${OUTFITS.length} trang phục</span>
+      </div>
+      <div class="grid">${[null, ...OUTFITS].map(itemHTML).join('')}</div>`;
+  }
+
+  function syncUI() {
+    // Cập nhật trạng thái selected trên từng nút
+    list.querySelectorAll('.item').forEach(b => {
+      const id   = b.dataset.id || null;
+      b.setAttribute('aria-pressed', String(id === currentOutfit));
+    });
+
+    // Tint nền theo outfit
+    const o = OUTFITS.find(x => x.id === currentOutfit);
+    app.style.setProperty('--tint', o ? o.color : DEFAULT_TINT);
+
+    // Tag hiển thị đang mặc gì
+    const tag = $('nowWearing');
+    if (tag) {
+      tag.innerHTML = o ? `${o.code}<small>${o.name}</small>` : `Nini<small>Mặc định</small>`;
+    }
+  }
+
+  list.addEventListener('click', e => {
+    const b = e.target.closest('.item');
+    if (!b) return;
+    const id   = b.dataset.id || null;
+
+    // Chạm lại vào đồ đang mặc → cởi ra
+    currentOutfit = (id === currentOutfit) ? null : id;
+    write(OUTFIT_KEY, currentOutfit);
+    computeTargets();
+    syncUI();
+    pop = 1;
+  });
+
+  renderList();
+  syncUI();
+
+  // ── Live2D Opacity Control ──
+  const target = {};   // drawableId → opacity mong muốn
+  const shown  = {};   // drawableId → opacity hiện tại (dùng để fade)
+  let pop = 0;
+
+  function computeTargets() {
+    // Trang phục: chỉ bộ đang chọn hiện, các bộ khác ẩn
+    for (const o of OUTFITS) {
+      target[o.id] = (o.id === currentOutfit) ? 1 : 0;
+    }
+    // Thân mặc định: hiện khi chưa mặc đồ, ẩn khi đang mặc
+    target[BASE_BODY] = currentOutfit ? 0 : 1;
+
+    target[DEFAULT_HEAD] = 1;
+    for (const id of HIDDEN_HEADS) target[id] = 0;
+  }
+
+  computeTargets();
+
+  // API cho code bên ngoài
+  window.Nini = {
+    setOutfit(id) {
+      if (id !== null && !OUTFITS.some(o => o.id === id)) return;
+      currentOutfit = id;
+      write(OUTFIT_KEY, id);
+      computeTargets(); syncUI(); pop = 1;
+    },
+    get outfit() { return currentOutfit; },
+    outfits: OUTFITS.map(o => o.id),
+  };
+
+  // ── Boot ──
+  if (location.protocol === 'file:') {
+    $('loading').outerHTML = `<div class="error">Mở trang qua máy chủ cục bộ để tải model Live2D, ví dụ:<br><code>python -m http.server 8000</code><br>rồi vào http://localhost:8000</div>`;
+    return;
+  }
+
+  // Accept moc3 v6 (Cubism Editor 5.3+), Core công khai chỉ đọc tới v5
+  const latestMoc = Live2DCubismCore.Version.csmGetLatestMocVersion();
+  const _origFromBuf = Live2DCubismCore.Moc.fromArrayBuffer;
+  Live2DCubismCore.Moc.fromArrayBuffer = function(buf) {
+    const b = new Uint8Array(buf);
+    if (b[4] > latestMoc) { const c = b.slice(); c[4] = latestMoc; buf = c.buffer; }
+    return _origFromBuf.call(this, buf);
+  };
+
+  const pixi = new PIXI.Application({
+    resizeTo: stage,
+    backgroundAlpha: 0,
+    antialias: true,
+    autoDensity: true,
+    resolution: Math.min(window.devicePixelRatio || 1, 2),
+  });
+  stage.insertBefore(pixi.view, stage.firstChild);
+
+  PIXI.live2d.Live2DModel.from(MODEL_URL, { autoInteract: false }).then(model => {
+    $('loading').remove();
+    $('nowWearing').hidden = false;
+    $('shadow').hidden = false;
+
+    const core = model.internalModel.coreModel;
+    const raw  = core.getModel ? core.getModel() : core._model;
+    const allIds = Array.from(raw.drawables.ids);
+    const idx    = Object.fromEntries(allIds.map((id, i) => [id, i]));
+
+    // Khởi tạo opacity hiện tại cho mỗi drawable
+    for (const id of allIds) {
+      shown[id] = target[id] ?? 0;
+    }
+
+    // Lock các param điều khiển opacity trong moc3 (giữ ở 1),
+    // rồi ghi đè opacity sau mỗi update frame.
+    const lockParams = ['Param', 'Param2', 'Param3'].filter(p => core.getParameterIndex(p) >= 0);
+    const animatedIds = [
+      'ParamAngleX', 'ParamAngleY', 'ParamAngleZ',
+      'ParamBodyAngleX', 'ParamBodyAngleY', 'ParamBodyAngleZ',
+      'ParamEyeBallX', 'ParamEyeBallY', 'ParamEyeLOpen', 'ParamEyeROpen',
+      'ParamBreath', 'ParamHairFront', 'ParamHairSide', 'ParamHairBack',
+    ];
+    const parameters = Object.fromEntries(animatedIds
+      .map(id => [id, core.getParameterIndex(id)])
+      .filter(([, index]) => index >= 0)
+      .map(([id, index]) => [id, {
+        min: raw.parameters.minimumValues[index],
+        max: raw.parameters.maximumValues[index],
+        base: raw.parameters.defaultValues[index],
+      }]));
+    const pose = {};
+    const setPose = (id, value) => {
+      const p = parameters[id];
+      if (p) pose[id] = Math.max(p.min, Math.min(p.max, value));
+    };
+    const _coreUpdate = core.update.bind(core);
+    core.update = function() {
+      for (const p of lockParams) core.setParameterValueById(p, 1);
+      for (const [id, value] of Object.entries(pose)) core.setParameterValueById(id, value);
+      _coreUpdate();
+      const op = raw.drawables.opacities;
+      for (const id of allIds) {
+        op[idx[id]] = shown[id];
+      }
+    };
+
+    // Tính bounding box của tất cả mesh để căn vị trí
+    core.update();
+    const ppu = raw.canvasinfo.PixelsPerUnit;
+    const ox  = raw.canvasinfo.CanvasOriginX;
+    const oy  = raw.canvasinfo.CanvasOriginY;
+    let mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
+    for (const id of allIds) {
+      const v = raw.drawables.vertexPositions[idx[id]];
+      for (let i = 0; i < v.length; i += 2) {
+        const px = v[i] * ppu + ox, py = -v[i + 1] * ppu + oy;
+        mnX = Math.min(mnX, px); mxX = Math.max(mxX, px);
+        mnY = Math.min(mnY, py); mxY = Math.max(mxY, py);
+      }
+    }
+    const box = { cx: (mnX + mxX) / 2, bottom: mxY, w: mxX - mnX, h: mxY - mnY };
+
+    const holder = new PIXI.Container();
+    holder.addChild(model);
+    model.x = -box.cx;
+    model.y = -box.bottom;
+    pixi.stage.addChild(holder);
+
+    const shadow = $('shadow');
+    let baseScale = 1;
+    function layout() {
+      const W = stage.clientWidth, H = stage.clientHeight;
+      baseScale = Math.min((H * 0.66) / box.h, (W * 0.78) / box.w);
+      holder.x = W / 2;
+      holder.y = H * 0.84;
+      shadow.style.top   = `calc(${H * 0.84}px - 1.2%)`;
+      shadow.style.width = `${box.w * baseScale * 0.7}px`;
+    }
+    layout();
+    new ResizeObserver(layout).observe(stage);
+
+    // Chạm vào Nini → nhún
+    holder.interactive = true;
+    holder.cursor = 'pointer';
+    holder.on('pointertap', () => { pop = 1; });
+
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let t = 0;
+    let gazeX = 0, gazeY = 0, targetGazeX = 0, targetGazeY = 0;
+    let nextGaze = 1.5, nextBlink = 2 + Math.random() * 2;
+    let blinkTime = -1;
+    const blinkDuration = 0.19;
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) pixi.ticker.stop();
+      else pixi.ticker.start();
+    });
+    pixi.ticker.add(() => {
+      const dt = Math.min(pixi.ticker.deltaMS / 1000, 0.05);
+      const reduce = reducedMotion.matches;
+      t += dt;
+      // Fade opacity từ hiện tại → target
+      const k = reduce ? 1 : 1 - Math.exp(-dt * 14);
+      for (const id of allIds) {
+        const goal = target[id] ?? 0;
+        shown[id] += (goal - shown[id]) * k;
+        if (Math.abs(goal - shown[id]) < 0.002) shown[id] = goal;
+      }
+      // Nhịp thở và chuyển trọng tâm không trùng chu kỳ để tránh cảm giác máy móc.
+      const breath = Math.sin(t * 2.15);
+      const sway = Math.sin(t * 0.82) + Math.sin(t * 1.37 + 0.7) * 0.35;
+      const nod = Math.sin(t * 1.06 + 1.2);
+
+      if (reduce) {
+        for (const [id, p] of Object.entries(parameters)) setPose(id, p.base);
+        pop = 0;
+      } else {
+        nextGaze -= dt;
+        if (nextGaze <= 0) {
+          targetGazeX = (Math.random() * 2 - 1) * 0.48;
+          targetGazeY = (Math.random() * 2 - 1) * 0.28;
+          nextGaze = 2.2 + Math.random() * 2.6;
+        }
+        const gazeEase = 1 - Math.exp(-dt * 1.8);
+        gazeX += (targetGazeX - gazeX) * gazeEase;
+        gazeY += (targetGazeY - gazeY) * gazeEase;
+
+        nextBlink -= dt;
+        if (nextBlink <= 0 && blinkTime < 0) {
+          blinkTime = 0;
+          nextBlink = 2.4 + Math.random() * 3.2;
+        }
+        let eyeOpen = 1;
+        if (blinkTime >= 0) {
+          blinkTime += dt;
+          const phase = Math.min(blinkTime / blinkDuration, 1);
+          eyeOpen = 1 - Math.pow(Math.sin(Math.PI * phase), 2) * 0.96;
+          if (phase === 1) blinkTime = -1;
+        }
+
+        setPose('ParamAngleX', gazeX * 8 + sway * 1.6);
+        setPose('ParamAngleY', gazeY * 7 + nod * 1.6);
+        setPose('ParamAngleZ', sway * 2.2);
+        setPose('ParamBodyAngleX', sway * 1.4);
+        setPose('ParamBodyAngleY', nod * 0.8);
+        setPose('ParamBodyAngleZ', sway * 1.2);
+        setPose('ParamEyeBallX', gazeX);
+        setPose('ParamEyeBallY', gazeY);
+        setPose('ParamEyeLOpen', (parameters.ParamEyeLOpen?.base ?? 1) * eyeOpen);
+        setPose('ParamEyeROpen', (parameters.ParamEyeROpen?.base ?? 1) * eyeOpen);
+        setPose('ParamBreath', (parameters.ParamBreath?.min ?? 0) + ((breath + 1) / 2) * ((parameters.ParamBreath?.max ?? 1) - (parameters.ParamBreath?.min ?? 0)));
+        setPose('ParamHairFront', sway * 0.22);
+        setPose('ParamHairSide', sway * 0.28);
+        setPose('ParamHairBack', sway * 0.18);
+      }
+
+      const pulse = reduce ? 0 : Math.sin(pop * Math.PI) * 0.065;
+      pop = Math.max(0, pop - dt * 2.8);
+      const breatheScale = reduce ? 0 : breath * 0.014;
+      holder.scale.set(baseScale * (1 - breatheScale * 0.4 + pulse * 0.35), baseScale * (1 + breatheScale + pulse * 0.65));
+      holder.rotation = reduce ? 0 : sway * 0.027;
+      holder.x = stage.clientWidth / 2 + (reduce ? 0 : sway * 3.5);
+      holder.y = stage.clientHeight * 0.84 + (reduce ? 0 : breath * 2.5);
+    });
+  }).catch(err => {
+    console.error(err);
+    const l = $('loading');
+    if (l) l.outerHTML = `<div class="error">Không tải được model Live2D.<br>${String(err && err.message || err)}</div>`;
+  });
+})();
+</script>
+</body>
+</html>
+

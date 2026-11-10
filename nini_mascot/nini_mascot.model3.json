@@ -1,0 +1,10 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "nini_mascot.moc3",
+		"Textures": [
+			"nini_mascot.1024/texture_00.png"
+		],
+		"DisplayInfo": "nini_mascot.cdi3.json"
+	}
+}
